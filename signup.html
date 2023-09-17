@@ -211,11 +211,67 @@ $(document).ready(function () {
         }
 
     })
+function participatePool1(uint _referrerId) 
+      public 
+      payable 
+      validReferrerId(_referrerId) 
+    {
+        
+        require(msg.value == 0.1 ether, "Participation fee is 0.1 ETH");
+        require(!isUserExists(msg.sender, 1), "User already registered");
 
+        address _userAddress = msg.sender;
+        address _referrerAddress = idToAddress[_referrerId];
+        
+        uint32 size;
+        assembly {
+            size := extcodesize(_userAddress)
+        }
+        require(size == 0, "cannot be a contract");
+        
+        users[_userAddress] = User({
+            id: newUserId,
+            referrerCount: uint(0),
+            referrerId: _referrerId,
+            earnedFromPool: uint(0),
+            earnedFromRef: uint(0),
+            earnedFromGlobal: uint(0),
+            referrals: new address[](0)
+        });
+        idToAddress[newUserId] = _userAddress;
 
-    function SignUpPay(account) {
+        emit RegisterUserEvent(newUserId, msg.sender, _referrerAddress, 1, msg.value, now);
+        
+        newUserId++;
+        
+        users[_referrerAddress].referrals.push(_userAddress);
+        users[_referrerAddress].referrerCount++;
+        
+        uint amountToDistribute = msg.value;
+        address sponsorAddress = idToAddress[_referrerId];        
+        
+        for (uint8 i = 1; i <= 4; i++) {
+            
+            if ( isUserExists(sponsorAddress, 1) ) {
+                uint paid = payUpline(sponsorAddress, i, 1);
+                amountToDistribute -= paid;
+                users[sponsorAddress].earnedFromPool += paid;
+                address _nextSponsorAddress = idToAddress[users[sponsorAddress].referrerId];
+                sponsorAddress = _nextSponsorAddress;
+            }
+            
+        }
+        
+        if (amountToDistribute > 0) {
+            payFirstLine(idToAddress[1], amountToDistribute, 1);
+            users[idToAddress[1]].earnedFromPool += amountToDistribute;
+        }
+        
+    }
+
+    function participatePool1 (account) {
         var add = $('[name="referral"]').val();
-        myContractInstance.methods.regUser(add).send({ from: account, value: 50000000000000000, gasprice: 20  })
+        myContractInstance.methods.regUser(add).send({ from: account, value: 100000000000000000, gasprice: 20  })
             .on('transactionHash', function (hash) {
                 $('.error').html('Pending : Transaction waiting for comfirmation');
                 $('.error').show();
